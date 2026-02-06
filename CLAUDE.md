@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TYPO3 extension `ok_ai_news` (oliverkroener/ok-ai-news) — receives webhook POST requests via TYPO3 Reactions and creates EXT:news records with FAL image attachments.
 
-**TYPO3 compat:** 12.4 and 13.4 | **PHP:** >= 8.1
+**TYPO3 compat:** 12.4 and 13.4 | **PHP:** >= 8.1 | **Dependencies:** `typo3/cms-reactions`, `georgringer/news`
 
 ## Architecture
 
@@ -15,8 +15,21 @@ TYPO3 extension `ok_ai_news` (oliverkroener/ok-ai-news) — receives webhook POS
 Three core classes:
 
 - **`Classes/Reaction/CreateNewsReaction.php`** — Implements `TYPO3\CMS\Reactions\Reaction\ReactionInterface`. Entry point for webhook payloads. Validates input, delegates to services, returns JSON response.
-- **`Classes/Service/FileHandlingService.php`** — Decodes base64 image data, writes to FAL via `ResourceFactory`/`StorageRepository`. Handles data URI prefix stripping. Stores files in configurable subfolder of fileadmin.
+- **`Classes/Service/FileHandlingService.php`** — Decodes base64 image data, writes to FAL via `StorageRepository::getDefaultStorage()`. Handles data URI prefix stripping. Stores files in configurable subfolder of fileadmin.
 - **`Classes/Service/NewsCreationService.php`** — Creates `tx_news_domain_model_news` records via TYPO3 `DataHandler`. Handles `sys_file_reference` creation to link FAL images to news records via `fal_media` field. News records are created as hidden (hidden=1) by default.
+
+## DataHandler Pattern for FAL References
+
+When creating news records with images, both the news record and `sys_file_reference` are created in a single DataHandler call using `NEW`-prefixed IDs:
+
+```php
+$newId = 'NEW' . uniqid('', true);
+$fileRefId = 'NEW' . uniqid('ref', true);
+$data = [
+    'tx_news_domain_model_news' => [$newId => ['fal_media' => $fileRefId, ...]],
+    'sys_file_reference' => [$fileRefId => ['uid_local' => $fileUid, 'tablenames' => 'tx_news_domain_model_news', 'fieldname' => 'fal_media', ...]],
+];
+```
 
 ## Expected Webhook Payload
 
